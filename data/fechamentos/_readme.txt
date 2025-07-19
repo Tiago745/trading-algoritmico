@@ -1,0 +1,1 @@
+Todos os arquivos .csv dentro desta pasta serão ignorados durante o commit (ver gitignore na raiz
