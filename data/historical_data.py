@@ -9,8 +9,8 @@ def get_historical_klines(symbol, interval, start_str=None, end_str=None):
     return client.get_historical_klines(symbol, interval, start_str, end_str)
 
 symbol = 'BTCUSDT'
-interval = Client.KLINE_INTERVAL_1DAY
-start_str = '1 Jan, 2018'
+interval = Client.KLINE_INTERVAL_4HOUR
+start_str = '1 Jan, 2015'
 end_str = '31 Dec, 2024'
 
 klines = get_historical_klines(symbol, interval, start_str, end_str)
