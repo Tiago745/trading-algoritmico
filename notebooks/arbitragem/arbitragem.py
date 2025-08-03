@@ -5,7 +5,6 @@ from statsmodels.tsa.stattools import coint
 import itertools
 
 
-
 # Carregar dados
 def carregar_dados(moeda1, moeda2):
 
@@ -63,8 +62,36 @@ def calcular_spread(serie1, serie2):
 
     return spread
 
+def vale_a_pena_operar(cotacao_atual, cotacao_futura_esperada, taxa=0.01, tipo_operacao='compra'):
+    """
+    Verifica se vale a pena operar o ativo (comprado ou vendido), considerando as taxas.
+
+    Parâmetros:
+    - cotacao_atual: preço atual do ativo
+    - cotacao_futura_esperada: preço esperado na venda (se comprado) ou recompra (se vendido)
+    - taxa: taxa cobrada em cada operação (compra ou venda), como 0.01 para 1%
+    - tipo_operacao: 'compra' ou 'venda' (representa a posição inicial)
+
+    Retorna:
+    - True se a operação vale a pena (lucro cobre as taxas), False caso contrário
+    """
+
+    if tipo_operacao == 'compra':
+        custo_total = cotacao_atual * (1 + taxa)
+        valor_recebido = cotacao_futura_esperada * (1 - taxa)
+        return valor_recebido > custo_total
+    
+    elif tipo_operacao == 'venda':
+        receita_liquida = cotacao_atual * (1 - taxa)
+        custo_recompra = cotacao_futura_esperada * (1 + taxa)
+        return receita_liquida > custo_recompra
+    
+    else:
+        raise ValueError("tipo_operacao deve ser 'compra' ou 'venda'")
+
+
 # Estratégia de sinalização
-def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, cooldown_stop_loss, janela):
+def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, cooldown_stop_loss, janela, taxa=0.01):
     series1 = df['Ativo1']
     series2 = df['Ativo2']
 
@@ -83,10 +110,18 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
 
     for i in range(len(df)):
         linha_df = df.iloc[i]
+        '''
         if zscore.iloc[i] > limite_superior:
             posicao = nomes_posicoes[2] #entra vendido no ativo 1 e comprado no 2
         if zscore.iloc[i] < -limite_inferior:
             posicao = nomes_posicoes[1] #entra comprado no ativo 1 e vendido no 2
+        '''
+        if zscore.iloc[i] > limite_superior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'venda'):
+            posicao = nomes_posicoes[2] #entra vendido no ativo 1 e comprado no 2
+        if zscore.iloc[i] < -limite_inferior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'compra'):
+            posicao = nomes_posicoes[1] #entra comprado no ativo 1 e vendido no 2
+
+
         if (-0.5 < zscore.iloc[i] < zscore_encerrar_posicao):
             posicao = nomes_posicoes[0] #posicao mantem neutra ou encerra posicao anterior
         ##if stoploss
@@ -113,30 +148,56 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
     return df_sinais
 
 
-def simular_retorno_por_trade(df, capital_inicial=10000):
-    series1 = df['Ativo1'] #cotação ativo 1
-    series2 = df['Ativo2'] #cotação ativo 2
-    sinais = df['sinal']   #sinal compra e venda
+def simular_retorno_por_trade(df, capital_inicial=10000, taxa=0.01):
+    series1 = df['Ativo1']
+    series2 = df['Ativo2']
+    sinais = df['sinal']
+
     capital = capital_inicial
     capital_series = [capital]
     posicao = None
     entrada_indice = None
-
-    retornos_trade = [None] 
-    
+    retornos_trade = [None]
 
     for i in range(1, len(sinais)):
-        ret = None  # retorno naquele ponto
+        ret = None
+
         if posicao is None and sinais.iloc[i] != 'neutro':
             posicao = sinais.iloc[i]
             entrada_indice = i
+
         elif posicao is not None and sinais.iloc[i] == 'neutro':
+            # Entrada
+            preco_entrada_1 = series1.iloc[entrada_indice]
+            preco_entrada_2 = series2.iloc[entrada_indice]
+
+            # Saída
+            preco_saida_1 = series1.iloc[i]
+            preco_saida_2 = series2.iloc[i]
+
             if posicao == 'compra_1_vende_2':
-                ret = ((series1.iloc[i] - series1.iloc[entrada_indice]) / series1.iloc[entrada_indice]) - \
-                      ((series2.iloc[i] - series2.iloc[entrada_indice]) / series2.iloc[entrada_indice])
-            else:
-                ret = ((series2.iloc[i] - series2.iloc[entrada_indice]) / series2.iloc[entrada_indice]) - \
-                      ((series1.iloc[i] - series1.iloc[entrada_indice]) / series1.iloc[entrada_indice])
+                # Compra ativo 1 (paga mais), vende ativo 2 (recebe menos)
+                preco_entrada_1 *= (1 + taxa)
+                preco_entrada_2 *= (1 - taxa)
+
+                # Vende ativo 1 (recebe menos), recompra ativo 2 (paga mais)
+                preco_saida_1 *= (1 - taxa)
+                preco_saida_2 *= (1 + taxa)
+
+                ret = ((preco_saida_1 - preco_entrada_1) / preco_entrada_1) - \
+                      ((preco_saida_2 - preco_entrada_2) / preco_entrada_2)
+
+            elif posicao == 'vende_1_compra_2':
+                # Vende ativo 1 (recebe menos), compra ativo 2 (paga mais)
+                preco_entrada_1 *= (1 - taxa)
+                preco_entrada_2 *= (1 + taxa)
+
+                # Recompra ativo 1 (paga mais), vende ativo 2 (recebe menos)
+                preco_saida_1 *= (1 + taxa)
+                preco_saida_2 *= (1 - taxa)
+
+                ret = ((preco_saida_2 - preco_entrada_2) / preco_entrada_2) - \
+                      ((preco_saida_1 - preco_entrada_1) / preco_entrada_1)
 
             capital *= (1 + ret)
             posicao = None
@@ -148,38 +209,39 @@ def simular_retorno_por_trade(df, capital_inicial=10000):
     retorno_pct = (capital / capital_inicial) - 1
 
     df_resultado = df.copy()
-
-    #retornos
     df_resultado['capital'] = capital_series
     df_resultado['retorno_trade'] = retornos_trade
-
 
     return capital, retorno_pct, capital_series, df_resultado
 
 def simular_estrategia(moeda1, moeda2, zscore_compra_e_venda, zscore_encerrar_posicao, 
-                       stop_loss, cooldown_stop_loss, janela, capital_inicial=10000):
+                       stop_loss, cooldown_stop_loss, janela, data_inicial, data_final, 
+                       taxa=0.01, capital_inicial=10000):
     
     # Carregar dados
-    df = carregar_dados(moeda1, moeda2)
+    df = carregar_dados(moeda1, moeda2).loc[data_inicial:data_final]
+
 
     # Testar cointegração
+    '''
     p_valor = testar_cointegracao(df['Ativo1'], df['Ativo2'])
     if p_valor > 0.05:
         print(f"As séries {moeda1}-{moeda2} não são cointegradas (p-valor = {p_valor:.4f})")
         return None, None, None
+    '''
 
     # Gerar sinais
-    df_sinais = gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, cooldown_stop_loss, janela)
+    df_sinais = gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, cooldown_stop_loss, janela, taxa)
 
     # Simular retorno
-    capital_final, retorno_pct, capital_series, df_resultado = simular_retorno_por_trade(df_sinais, capital_inicial)
+    capital_final, retorno_pct, capital_series, df_resultado = simular_retorno_por_trade(df_sinais, capital_inicial, taxa)
 
     # Calcular retornos percentuais por trade
     retornos_trade = df_resultado['retorno_trade'].dropna()
 
     # Calcular métricas
-    sharpe = calcular_sharpe(retornos_trade)
-    retorno_risco = retorno_ajustado_ao_risco(retornos_trade)
+    sharpe = 0 #calcular_sharpe(retornos_trade)
+    retorno_risco = 0 #retorno_ajustado_ao_risco(retornos_trade)
 
     return retorno_pct, retorno_risco, sharpe
 
