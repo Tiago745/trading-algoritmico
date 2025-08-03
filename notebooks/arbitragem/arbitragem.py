@@ -6,9 +6,8 @@ import itertools
 
 
 # Carregar dados
-def carregar_dados(moeda1, moeda2):
-
-    path_ativo_1 = f'../../data/fechamentos/{moeda1}USDT_5m_data.csv'
+def carregar_dados(moeda1, moeda2, PATH="5m"):
+    path_ativo_1 = f'../../data/fechamentos/{moeda1}USDT_{PATH}_data.csv'
     path_ativo_2 = f'../../data/fechamentos/{moeda2}USDT_5m_data.csv'
 
     ativo1 = pd.read_csv(path_ativo_1, parse_dates=['timestamp'], index_col='timestamp')
@@ -91,6 +90,90 @@ def vale_a_pena_operar(cotacao_atual, cotacao_futura_esperada, taxa=0.01, tipo_o
 
 
 # Estratégia de sinalização
+def gerar_sinais_com_stoploss(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, cooldown_stop_loss, janela, taxa=0.01):
+    series1 = df['Ativo1']
+    series2 = df['Ativo2']
+
+    limite_superior =zscore_compra_e_venda
+    limite_inferior = -zscore_compra_e_venda
+
+    spread = calcular_spread(series1, series2)
+    rolling_mean, rolling_std, zscore = calcular_zscore(spread, janela) #Zscore com janela movel
+    media_movel_ativo1, media_movel_ativo2, ativo1_std, ativo2_std = calcular_media_ativos(series1, series2, janela) #media movel do ativo 1 e 2
+
+    # Calcular ATR do spread
+    spread_diff = spread.diff().abs()
+    atr = spread_diff.rolling(window=janela).mean().bfill()
+
+    nomes_posicoes = ["neutro", "compra_1_vende_2", "vende_1_compra_2"]
+    posicao = nomes_posicoes[0] #comprado_vendido, vendido_comprado, encerrar, Neutro
+    cooldown = 0
+    sinais_compra_e_venda = []
+    preco_entrada = None
+
+    for i in range(len(df)):
+        spread_atual = spread.iloc[i]
+        atr_atual = atr.iloc[i]
+
+        # Se em cooldown, não faz nada
+        if cooldown > 0:
+            cooldown -= 1
+            sinais_compra_e_venda.append(nomes_posicoes[0])
+            posicao = nomes_posicoes[0]
+            preco_entrada = None
+            continue
+
+        # Verifica stop loss baseado em ATR
+        if posicao != nomes_posicoes[0] and preco_entrada is not None:
+            prejuizo = (
+                spread_atual - preco_entrada if posicao == nomes_posicoes[2]
+                else preco_entrada - spread_atual
+            )
+            if prejuizo > stop_loss * atr_atual:
+                posicao = nomes_posicoes[0]
+                cooldown = cooldown_stop_loss*janela
+                preco_entrada = None
+                sinais_compra_e_venda.append("neutro")
+                continue  # sai daqui e não avalia entrada nova
+
+        # Só tenta entrar em nova posição se está neutro e não em cooldown
+        if posicao == nomes_posicoes[0]:
+            if zscore.iloc[i] > limite_superior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'venda'):
+                posicao = nomes_posicoes[2] #entra vendido no ativo 1 e comprado no 2
+                preco_entrada = spread_atual
+            if zscore.iloc[i] < -limite_inferior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'compra'):
+                posicao = nomes_posicoes[1] #entra comprado no ativo 1 e vendido no 2
+                preco_entrada = spread_atual
+
+        # Verifica se deve encerrar a posição com base no z-score
+        if (-0.5 < zscore.iloc[i] < zscore_encerrar_posicao):
+            posicao = nomes_posicoes[0] #posicao mantem neutra ou encerra posicao anterior
+            preco_entrada = None
+            
+        sinais_compra_e_venda.append(posicao)
+    
+    # Resultado final
+    df_sinais = pd.DataFrame({
+        'timestamp': df.index,
+        'Ativo1': pd.to_numeric(series1, errors='coerce'),
+        'Ativo2': pd.to_numeric(series2, errors='coerce'),
+        'ativo1_mean': media_movel_ativo1,
+        'ativo2_mean': media_movel_ativo2,
+        'ativo1_std': ativo1_std, 
+        'ativo2_std': ativo2_std,
+        'spread': pd.to_numeric(spread, errors='coerce'),
+        'rolling_mean': rolling_mean.values,
+        'rolling_std': rolling_std.values,
+        'zscore': zscore.values,
+        'sinal': sinais_compra_e_venda
+    }).dropna()
+    
+    df_sinais.to_excel('resultados/estrategia.xlsx', index=False)
+
+    return df_sinais
+
+# Estratégia de sinalização
+# Estratégia de sinalização
 def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, cooldown_stop_loss, janela, taxa=0.01):
     series1 = df['Ativo1']
     series2 = df['Ativo2']
@@ -146,7 +229,6 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
     df_sinais.to_excel('resultados/estrategia.xlsx', index=False)
 
     return df_sinais
-
 
 def simular_retorno_por_trade(df, capital_inicial=10000, taxa=0.01):
     series1 = df['Ativo1']
@@ -216,10 +298,10 @@ def simular_retorno_por_trade(df, capital_inicial=10000, taxa=0.01):
 
 def simular_estrategia(moeda1, moeda2, zscore_compra_e_venda, zscore_encerrar_posicao, 
                        stop_loss, cooldown_stop_loss, janela, data_inicial, data_final, 
-                       taxa=0.01, capital_inicial=10000):
+                       periodo_observacoes="1d", taxa=0.01, capital_inicial=10000):
     
     # Carregar dados
-    df = carregar_dados(moeda1, moeda2).loc[data_inicial:data_final]
+    df = carregar_dados(moeda1, moeda2, periodo_observacoes).loc[data_inicial:data_final]
 
 
     # Testar cointegração
@@ -240,8 +322,8 @@ def simular_estrategia(moeda1, moeda2, zscore_compra_e_venda, zscore_encerrar_po
     retornos_trade = df_resultado['retorno_trade'].dropna()
 
     # Calcular métricas
-    sharpe = 0 #calcular_sharpe(retornos_trade)
-    retorno_risco = 0 #retorno_ajustado_ao_risco(retornos_trade)
+    sharpe = calcular_sharpe(retornos_trade)
+    retorno_risco = retorno_ajustado_ao_risco(retornos_trade)
 
     return retorno_pct, retorno_risco, sharpe
 
