@@ -1,14 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import coint
+import statsmodels.api as sm  #regressão linear
+from statsmodels.tsa.stattools import coint, adfuller #pra verificar cointegração por engle-granger e dickey-fuller
 import itertools
-
 
 # Carregar dados
 def carregar_dados(moeda1, moeda2, PATH="5m"):
     path_ativo_1 = f'../../data/fechamentos/{moeda1}USDT_{PATH}_data.csv'
-    path_ativo_2 = f'../../data/fechamentos/{moeda2}USDT_5m_data.csv'
+    path_ativo_2 = f'../../data/fechamentos/{moeda2}USDT_{PATH}_data.csv'
 
     ativo1 = pd.read_csv(path_ativo_1, parse_dates=['timestamp'], index_col='timestamp')
     ativo2 = pd.read_csv(path_ativo_2, parse_dates=['timestamp'], index_col='timestamp')
@@ -24,10 +24,70 @@ def carregar_dados(moeda1, moeda2, PATH="5m"):
 
 
 # Teste de cointegração
-def testar_cointegracao(series1, series2):
-    _, pvalor, _ = coint(series1, series2)
-    return pvalor
+def testar_cointegracao(series1, series2, signif=0.05):
+    """
+    Retorna True se as séries forem cointegradas segundo:
+    - ADF individual: ambas não estacionárias
+    - Engle-Granger: resíduos estacionários
+    """
+    # Teste Dickey-Fuller individual
+    adf1_p = adfuller(series1)[1]
+    adf2_p = adfuller(series2)[1]
+    
+    # Se alguma série for estacionária, não faz sentido testar cointegração
+    if adf1_p <= signif or adf2_p <= signif:
+        return False
+    
+    # Teste Engle-Granger (Cointegração)
+    _, p_coint, _ = coint(series1, series2)
+    
+    return p_coint < signif
 
+from statsmodels.tsa.stattools import coint, adfuller
+
+def testar_cointegracao_movel(series1, series2, janela, signif=0.05):
+    """
+    Testa cointegração móvel entre duas séries de preços usando Engle-Granger.
+    
+    Passos:
+    1. Para cada janela de tamanho 'janela', faz regressão linear:
+        series1 = alpha + beta * series2 + residuos
+    2. Testa Engle-Granger (coint) na janela.
+    3. Testa Dickey-Fuller (ADF) nos resíduos da regressão.
+    
+    Retorna True para cada janela se:
+        - pvalor Engle-Granger < signif
+        - pvalor ADF nos resíduos < signif
+    Caso contrário, retorna False.
+    """
+
+    resultados = []
+
+    #Janela válida até final da série
+    for i in range(janela, len(series1)):
+
+        # Pega apenas a janela atual (e.g: 5 até 10 se: janela=5 e i=10)
+        window1 = series1[i - janela:i]
+        window2 = series2[i - janela:i]
+
+        # 1️⃣ Regressão linear: series1 ~ series2
+        X = sm.add_constant(window2)  # adiciona intercepto
+        model = sm.OLS(window1, X).fit()
+        residuos = model.resid
+
+        # 2️⃣ Teste Engle-Granger
+        _, pval_coint, _ = coint(window1, window2)
+
+        # 3️⃣ Teste Dickey-Fuller nos resíduos
+        _, pval_adf, _, _, _, _ = adfuller(residuos)
+
+        # 4️⃣ Só é cointegrado se ambos testes rejeitarem H0
+        cointegrado = (pval_coint < signif) and (pval_adf < signif)
+        resultados.append(cointegrado)
+
+    print(resultados)
+
+    return resultados
 # Zscore
 def calcular_zscore(spread, window=60):
     rolling_mean = spread.rolling(window=window).mean() #média da última janela
@@ -141,7 +201,7 @@ def gerar_sinais_com_stoploss(df, zscore_compra_e_venda, zscore_encerrar_posicao
             if zscore.iloc[i] > limite_superior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'venda'):
                 posicao = nomes_posicoes[2] #entra vendido no ativo 1 e comprado no 2
                 preco_entrada = spread_atual
-            if zscore.iloc[i] < -limite_inferior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'compra'):
+            if zscore.iloc[i] < limite_inferior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'compra'):
                 posicao = nomes_posicoes[1] #entra comprado no ativo 1 e vendido no 2
                 preco_entrada = spread_atual
 
@@ -180,6 +240,12 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
     limite_superior =zscore_compra_e_venda
     limite_inferior = -zscore_compra_e_venda
 
+    # Teste de cointegração móvel
+    resultados_cointegracao = testar_cointegracao_movel(series1, series2, janela)
+    # Preenche início com False para alinhar ao tamanho da série
+    status_cointegracao = [False]*janela + resultados_cointegracao
+    status_cointegracao = pd.Series(status_cointegracao, index=series1.index)
+    
     spread = calcular_spread(series1, series2)
     rolling_mean, rolling_std, zscore = calcular_zscore(spread, janela) #Zscore com janela movel
     media_movel_ativo1, media_movel_ativo2, ativo1_std, ativo2_std = calcular_media_ativos(series1, series2, janela) #media movel do ativo 1 e 2
@@ -200,7 +266,7 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
         '''
         if zscore.iloc[i] > limite_superior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'venda'):
             posicao = nomes_posicoes[2] #entra vendido no ativo 1 e comprado no 2
-        if zscore.iloc[i] < -limite_inferior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'compra'):
+        if zscore.iloc[i] < limite_inferior and vale_a_pena_operar(df['Ativo1'].iloc[i], media_movel_ativo1.iloc[i], taxa, 'compra'):
             posicao = nomes_posicoes[1] #entra comprado no ativo 1 e vendido no 2
 
 
@@ -212,6 +278,7 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
     # Resultado final
     df_sinais = pd.DataFrame({
         'timestamp': df.index,
+        'status_cointegracao': status_cointegracao,
         'Ativo1': pd.to_numeric(series1, errors='coerce'),
         'Ativo2': pd.to_numeric(series2, errors='coerce'),
         'ativo1_mean': media_movel_ativo1,
@@ -225,6 +292,8 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
         'sinal': sinais_compra_e_venda
     }).dropna()
     
+
+
     df_sinais.to_excel('resultados/estrategia.xlsx', index=False)
 
     return df_sinais
