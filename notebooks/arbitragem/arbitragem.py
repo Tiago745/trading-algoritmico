@@ -41,7 +41,7 @@ def testar_cointegracao(series1, series2, signif=0.05):
     # Teste Engle-Granger (Cointegração)
     _, p_coint, _ = coint(series1, series2)
     
-    return p_coint < signif
+    return p_coint, p_coint < signif
 
 from statsmodels.tsa.stattools import coint, adfuller
 
@@ -70,18 +70,18 @@ def testar_cointegracao_movel(series1, series2, janela, signif=0.05):
         window1 = series1[i - janela:i]
         window2 = series2[i - janela:i]
 
-        # 1️⃣ Regressão linear: series1 ~ series2
+        # Regressão linear: series1 ~ series2
         X = sm.add_constant(window2)  # adiciona intercepto
         model = sm.OLS(window1, X).fit()
         residuos = model.resid
 
-        # 2️⃣ Teste Engle-Granger
+        # Teste Engle-Granger
         _, pval_coint, _ = coint(window1, window2)
 
-        # 3️⃣ Teste Dickey-Fuller nos resíduos
+        # Teste Dickey-Fuller nos resíduos
         _, pval_adf, _, _, _, _ = adfuller(residuos)
 
-        # 4️⃣ Só é cointegrado se ambos testes rejeitarem H0
+        # Só é cointegrado se ambos testes rejeitarem H0
         cointegrado = (pval_coint < signif) and (pval_adf < signif)
         resultados.append(cointegrado)
 
@@ -270,7 +270,7 @@ def gerar_sinais(df, zscore_compra_e_venda, zscore_encerrar_posicao, stop_loss, 
             posicao = nomes_posicoes[1] #entra comprado no ativo 1 e vendido no 2
 
 
-        if (-0.5 < zscore.iloc[i] < zscore_encerrar_posicao):
+        if (-zscore_encerrar_posicao < zscore.iloc[i] < zscore_encerrar_posicao):
             posicao = nomes_posicoes[0] #posicao mantem neutra ou encerra posicao anterior
         ##if stoploss
         sinais_compra_e_venda.append(posicao)
