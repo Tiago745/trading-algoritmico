@@ -8,8 +8,8 @@ client = Client(api_key='', api_secret='')
 def get_historical_klines(symbol, interval, start_str=None, end_str=None):
     return client.get_historical_klines(symbol, interval, start_str, end_str)
 
-symbol = 'XRPUSDT' 
-interval = Client.KLINE_INTERVAL_1HOUR
+symbol = 'SOLUSDT' 
+interval = Client.KLINE_INTERVAL_15MINUTE
 start_str = '20 Jul, 2017'
 end_str = '20 Jul, 2025'
 
