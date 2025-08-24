@@ -50,3 +50,173 @@ BCHUSDT
         take_profit=0.1,
         sma_window=200
     )
+
+BNBUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=0.8, gamma=0.2, reg_lambda=1.0, reg_alpha=0.3,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.1
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.2,
+        take_profit=0.1,
+        sma_window=100
+    )
+
+BTCUSDT 
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=1.0, gamma=0.2, reg_lambda=1.0, reg_alpha=0.4,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.1
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.2,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )
+
+ETHUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=1.0, gamma=0.2, reg_lambda=1.0, reg_alpha=0.4,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.1
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.05,
+        sma_window=300
+    )
+
+LTCUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=1.0, gamma=0.2, reg_lambda=1.5  , reg_alpha=0.3,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.05
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )
+
+TRXUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=0.9, gamma=0.2, reg_lambda=1.2, reg_alpha=0.2,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.05
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )
+
+XLMUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=0.9, gamma=0.2, reg_lambda=1.2, reg_alpha=0.2,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.05
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )
+
+XMRUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=0.9, gamma=0.2, reg_lambda=1.2, reg_alpha=0.2,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.05
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )
+
+XRPUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=0.9, gamma=0.2, reg_lambda=1.2, reg_alpha=0.2,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.05
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )
+
+XTZUSDT
+    model = xgb.XGBClassifier(
+        n_estimators=1000, objective='binary:logistic', learning_rate=0.01,
+        max_depth=5, scale_pos_weight=max(y_train.value_counts()[0], y_train.value_counts()[1]) / min(y_train.value_counts()[1], y_train.value_counts()[0]),
+        subsample=0.8, colsample_bytree=0.9, gamma=0.2, reg_lambda=1.2, reg_alpha=0.2,
+        early_stopping_rounds=50, random_state=1, n_jobs=-1
+    )
+
+    alpha = 0.05
+
+    trades_fold, final_balance_fold = simulate_trading(
+        test_df_for_sim,
+        initial_balance_fold=fold_initial_balance,
+        trailing_stop=0.1,
+        take_profit=0.2,
+        stop_loss=0.1,
+        sma_window=100
+    )

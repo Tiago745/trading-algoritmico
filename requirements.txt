@@ -1,0 +1,8 @@
+xgboost
+pandas
+numpy
+scikit-learn
+mapie
+matplotlib
+seaborn
+python-binance
