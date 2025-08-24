@@ -2,3 +2,5 @@ data/fechamentos/*.csv
 venv/
 __pycache__/
 *.pyc
+notebooks/arbitragem/resultados/simulacoes
+notebooks/arbitragem/resultados/simulacoes_otimizadas
