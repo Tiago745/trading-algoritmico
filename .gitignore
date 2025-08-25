@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 notebooks/arbitragem/resultados/simulacoes
 notebooks/arbitragem/resultados/simulacoes_otimizadas
+notebooks/arbitragem/resultados/otimizacao
